@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rectangular Spiral with Step</title>
+</head>
+<body>
+    <label for="width">Width (mm):</label>
+    <input type="number" id="width" value="200">
+    <label for="height">Height (mm):</label>
+    <input type="number" id="height" value="100">
+    <label for="turns">Turns:</label>
+    <input type="number" id="turns" value="10">
+    <label for="spacing">Spacing (mm):</label>
+    <input type="number" id="spacing" value="2">
+    <label for="step">Step (mm):</label>
+    <input type="number" id="step" value="10">
+    <label for="linewidth">Line Width (mm):</label>
+    <input type="number" id="linewidth" value="1">
+    
+    <label for="orientation">Orientation:</label>
+    <select id="orientation">
+        <option value="clockwise" selected>Clockwise</option>
+        <option value="anticlockwise">Anti-clockwise</option>
+    </select>
+
+    <button onclick="draw()">Generate Spiral</button>
+    <button onclick="downloadImage()">Download PNG</button>
+    <button onclick="downloadDXF()">Download DXF</button>
+
+    <canvas id="coilCanvas" width="2000" height="800" style="border:1px solid black;"></canvas>
+
+    <script>
+        let spiralPoints = []; // Stores spiral coordinates for DXF
+
+        function draw() {
+            var width = parseFloat(document.getElementById('width').value);
+            var height = parseFloat(document.getElementById('height').value);
+            var turns = parseInt(document.getElementById('turns').value);
+            var spacing = parseFloat(document.getElementById('spacing').value);
+            var step = parseFloat(document.getElementById('step').value);
+            var lineWidth = parseFloat(document.getElementById('linewidth').value);
+            var orientation = document.getElementById('orientation').value;
+
+            var scaleFactor = 5;  // Scale factor for better resolution
+
+            var canvas = document.getElementById('coilCanvas');
+            var ctx = canvas.getContext("2d");
+
+            // Resize Canvas Based on Input Dimensions
+            var canvasWidth = (width + 40) * scaleFactor;
+            var canvasHeight = (height + 40) * scaleFactor;
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.scale(scaleFactor, scaleFactor); // Scale for high-resolution PNG
+            ctx.lineWidth = lineWidth / scaleFactor; // Ensure correct line thickness
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+
+            // Compute Center Position for the Spiral
+            var centerX = (canvasWidth / scaleFactor - width) / 2;
+            var centerY = (canvasHeight / scaleFactor - height) / 2;
+
+            var x = centerX;
+            var y = centerY;
+
+            var w = width;
+            var h = height;
+            var correctedSpacing = spacing + lineWidth;
+
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            spiralPoints = []; // Reset points for DXF
+            spiralPoints.push([x, y]);
+
+            // Start Spiral
+            for (let i = 1; i <= turns; i++) {
+                if (orientation === "clockwise") {
+                    x += w - step - correctedSpacing;
+                    ctx.lineTo(x, y);
+                    spiralPoints.push([x, y]);
+
+                    y += h;
+                    ctx.lineTo(x, y);
+                    spiralPoints.push([x, y]);
+
+                    x -= w - 2 * correctedSpacing - step;
+                    ctx.lineTo(x, y);
+                    spiralPoints.push([x, y]);
+
+                    y -= h - correctedSpacing;
+                    ctx.lineTo(x, y);
+                    spiralPoints.push([x, y]);
+                } else { // Anti-clockwise
+                    y += h;
+                    ctx.lineTo(x, y);
+                    spiralPoints.push([x, y]);
+
+                    x += w - step - correctedSpacing;
+                    ctx.lineTo(x, y);
+                    spiralPoints.push([x, y]);
+
+                    y -= h - correctedSpacing;
+                    ctx.lineTo(x, y);
+                    spiralPoints.push([x, y]);
+
+                    x -= w - 2 * correctedSpacing - step;
+                    ctx.lineTo(x, y);
+                    spiralPoints.push([x, y]);
+                }
+
+                w -= correctedSpacing + step;
+                h -= 2 * correctedSpacing;
+            }
+
+            ctx.stroke();
+        }
+
+        function downloadImage() {
+            var canvas = document.getElementById('coilCanvas');
+            var filename = generateFilename("png");
+
+            var img = new Image();
+            img.onload = function () {
+                var offscreenCanvas = document.createElement("canvas");
+                var offCtx = offscreenCanvas.getContext("2d");
+
+                // Set canvas size for exporting
+                offscreenCanvas.width = canvas.width;
+                offscreenCanvas.height = canvas.height;
+                offCtx.fillStyle = "white"; // Set background to white
+                offCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+                offCtx.drawImage(canvas, 0, 0);
+
+                var link = document.createElement('a');
+                link.download = filename;
+                link.href = offscreenCanvas.toDataURL('image/png');
+                link.click();
+            };
+            img.src = canvas.toDataURL();
+        }
+
+        function downloadDXF() {
+            var filename = generateFilename("dxf");
+
+            let dxfContent = `0\nSECTION\n2\nHEADER\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nENDSEC\n`;
+            dxfContent += `0\nSECTION\n2\nBLOCKS\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n`;
+
+            for (let i = 1; i < spiralPoints.length; i++) {
+                let [x1, y1] = spiralPoints[i - 1];
+                let [x2, y2] = spiralPoints[i];
+
+                dxfContent += `0\nLINE\n8\nSpiral\n`;
+                dxfContent += `10\n${x1}\n20\n${y1}\n30\n0.0\n`; // Start point
+                dxfContent += `11\n${x2}\n21\n${y2}\n31\n0.0\n`; // End point
+            }
+
+            dxfContent += `0\nENDSEC\n0\nEOF`;
+
+            var blob = new Blob([dxfContent], { type: "text/plain" });
+            var link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+        }
+
+        function generateFilename(extension) {
+            var width = document.getElementById('width').value;
+            var height = document.getElementById('height').value;
+            var turns = document.getElementById('turns').value;
+            var spacing = document.getElementById('spacing').value;
+            var step = document.getElementById('step').value;
+            var lineWidth = document.getElementById('linewidth').value;
+            var orientation = document.getElementById('orientation').value;
+            return `rectangular_spiral_W${width}_H${height}_T${turns}_S${spacing}_Step${step}_LW${lineWidth}_${orientation}.${extension}`;
+        }
+    </script>
+</body>
+</html>
